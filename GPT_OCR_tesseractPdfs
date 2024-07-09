@@ -1,0 +1,80 @@
+"""More sophisticated version of a image2text converter using fitz for pdf2image, tesseract for OCR. 
+    Uses full pdfs. Transcribe engine control. 
+"""
+
+
+import openai
+import fitz  # PyMuPDF
+import sys, pymupdf  # alternative to fitz
+import pytesseract
+from pytesseract import Output
+from PIL import Image
+import io
+from dotenv import load_dotenv 
+import os
+from openai import OpenAI
+
+print("script running…")
+
+# Load API key from .env file
+load_dotenv()
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+# Function to extract images from PDF
+def extract_images_from_pdf(pdf_path):
+    pdf_document = fitz.open(pdf_path)
+    images = []
+    for page_num in range(len(pdf_document)):
+        page = pdf_document.load_page(page_num)
+        for img in page.get_images(full=True): # seems to only take one pic per page
+            xref = img[0]
+            base_image = pdf_document.extract_image(xref)
+            image_bytes = base_image["image"]
+            image = Image.open(io.BytesIO(image_bytes)) # OLD
+            # image = Image.open(io.BytesIO(image_bytes)).convert("RGB") # NEW
+            images.append(image)
+    return images
+
+
+# fname = sys.argv[1]  # get filename from command line
+# doc = pymupdf.open(fname)  # open document
+# for page in doc:  # iterate through the pages
+#     pix = page.get_pixmap()  # render page to an image
+#     pix.save("page-%i.png" % page.number)  # store image as a PNG
+
+
+# Function to apply OCR to images and extract Swedish text
+def apply_ocr_to_images(images):
+    ocr_results = []
+    for image in images:
+        text = pytesseract.image_to_string(image, lang='eng', output_type=Output.STRING) # does swe work here?
+        ocr_results.append(text)
+    return ocr_results
+
+# Function to transcribe text using OpenAI API
+def transcribe_texts(ocr_texts):
+    transcriptions = []
+    for ocr_text in ocr_texts:
+        response = client.chat.completions.create(model="gpt-4o", 
+            messages=[
+            {"role": "user",
+                # "content": f"What’s in this image?\n\n{ocr_text}",
+                "content": 
+                f"This is a english OCR text using tesseract, the text was originally Swedish however and hence the text 
+                is incorrect in many places. Correct the text to proper Swedish. \n\n{ocr_text}",}],
+            max_tokens=1000) # adjust this for output sizes
+        content = response.choices[0].message.content
+        transcriptions.append(content)
+    return transcriptions
+
+# Main function
+def main(pdf_path):
+    images = extract_images_from_pdf(pdf_path)
+    ocr_texts = apply_ocr_to_images(images)
+    transcriptions = transcribe_texts(ocr_texts)
+    for idx, transcription in enumerate(transcriptions):
+        print(f"Transcription for image {idx + 1}:\n{transcription}\n")
+
+if __name__ == "__main__":
+    pdf_path = '/Users/kailashdejesushornig/Documents/GitHub/Stipendier/data/pdfs/S_Åke_Bäckman.pdf'
+    main(pdf_path)

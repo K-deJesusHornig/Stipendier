@@ -1,0 +1,7 @@
+pytesseract
+python-dotenv
+openai
+fitz
+PIL
+dotenv
+pymupdf
