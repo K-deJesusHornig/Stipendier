@@ -27,14 +27,15 @@ client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 print("Script running...")
 
 # Load the local image
-image_path = '/Users/kailashdejesushornig/Documents/GitHub/Stipendier/data/images/Screenshot 2024-07-09 at 10.00.42.png'
+image_path = '/Users/kailashdejesushornig/Documents/GitHub/Stipendier/data/images/extraHard.png'
+image_name = os.path.basename(image_path)
 image = Image.open(image_path)
 
 # Apply OCR to the image to extract text
 # Available languages: print(pytesseract.get_languages(config='')) 
 # --> currently compatible with ['eng', 'osd'= Orientation and Script Detection, 'snum'= Sparse Text Number]
 ocr_text = pytesseract.image_to_string(image, lang="eng") #https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html 
-
+# print(f"Here comes the OCR: {ocr_texts}")
 
 
 # Use the extracted text as input to OpenAI API
@@ -54,7 +55,7 @@ max_tokens=500) # adjust this for output sizes
 
 #  Content to be written to file
 content = response.choices[0].message.content
-absolute_path = '/Users/kailashdejesushornig/Documents/GitHub/Stipendier/corrected_output.txt'
+absolute_path = '/Users/kailashdejesushornig/Documents/GitHub/Stipendier/corrected_output_'+image_name+'.txt'
 
 # Write the content to the file
 with open(absolute_path, 'w', encoding='utf-8') as file:

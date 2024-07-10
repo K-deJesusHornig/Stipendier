@@ -13,6 +13,7 @@ import io
 from dotenv import load_dotenv 
 import os
 from openai import OpenAI
+from tqdm import tqdm
 
 print("script running…")
 
@@ -30,18 +31,13 @@ def extract_images_from_pdf(pdf_path):
             xref = img[0]
             base_image = pdf_document.extract_image(xref)
             image_bytes = base_image["image"]
-            image = Image.open(io.BytesIO(image_bytes)) # OLD
-            # image = Image.open(io.BytesIO(image_bytes)).convert("RGB") # NEW
-            images.append(image)
+            try:
+                image = Image.open(io.BytesIO(image_bytes)) # OLD
+                # image = Image.open(io.BytesIO(image_bytes)).convert("RGB") # NEW
+                images.append(image)
+            except Exception as e:
+                print(f"Could not identify image file: {e}")
     return images
-
-
-# fname = sys.argv[1]  # get filename from command line
-# doc = pymupdf.open(fname)  # open document
-# for page in doc:  # iterate through the pages
-#     pix = page.get_pixmap()  # render page to an image
-#     pix.save("page-%i.png" % page.number)  # store image as a PNG
-
 
 # Function to apply OCR to images and extract Swedish text
 def apply_ocr_to_images(images):
@@ -59,22 +55,82 @@ def transcribe_texts(ocr_texts):
             messages=[
             {"role": "user",
                 # "content": f"What’s in this image?\n\n{ocr_text}",
-                "content": 
-                f"This is a english OCR text using tesseract, the text was originally Swedish however and hence the text 
-                is incorrect in many places. Correct the text to proper Swedish. \n\n{ocr_text}",}],
-            max_tokens=1000) # adjust this for output sizes
+                "content": f"This is a english OCR text using tesseract, the text was originally Swedish however and hence the text is incorrect in many places. Correct the text to proper Swedish. \n\n{ocr_text}",}],
+            max_tokens=4096) # adjust this for output sizes gpt-4o = 4096
         content = response.choices[0].message.content
         transcriptions.append(content)
     return transcriptions
 
-# Main function
-def main(pdf_path):
-    images = extract_images_from_pdf(pdf_path)
-    ocr_texts = apply_ocr_to_images(images)
-    transcriptions = transcribe_texts(ocr_texts)
-    for idx, transcription in enumerate(transcriptions):
-        print(f"Transcription for image {idx + 1}:\n{transcription}\n")
+#dynamically load pdfs
+def load_pdfs(directory_path):
+    pdf_files = []
 
-if __name__ == "__main__":
-    pdf_path = '/Users/kailashdejesushornig/Documents/GitHub/Stipendier/data/pdfs/S_Åke_Bäckman.pdf'
-    main(pdf_path)
+    # Walk through the directory
+    for root, dirs, files in os.walk(directory_path):
+        for file in files:
+            # Check if the file has a .pdf extension
+            if file.lower().endswith('.pdf'):
+                # Get the full path of the pdf file and add it to the list
+                full_path = os.path.join(root, file)
+                pdf_files.append(full_path)
+
+    return pdf_files
+
+# Main function
+# def main(pdf_files):
+#     # Pipeline for the pdfs
+#     for pdf_path in pdf_files:
+#         images = extract_images_from_pdf(pdf_path)
+#         ocr_texts = apply_ocr_to_images(images)
+#         # print(f"Here comes the OCR: {ocr_texts}") # only for trouble shooting
+#         transcriptions = transcribe_texts(ocr_texts)
+        
+#         # Save the transcription to a text file named after the PDF file
+#         output_filename = f"{os.path.splitext(os.path.basename(pdf_path))[0]}.txt"
+#         with open(output_filename, 'w', encoding='utf-8') as f:
+#             for idx, transcription in enumerate(transcriptions):
+#                 f.write(f"Transcription for image {idx + 1}:\n{transcription}\n\n")
+        
+#         print(f"Transcriptions saved to {output_filename}")
+
+def main(pdf_files):
+    # Pipeline for the pdfs
+    with tqdm(total=len(pdf_files), desc="Processing PDFs") as pbar:
+        for pdf_path in pdf_files:
+            images = extract_images_from_pdf(pdf_path)
+            ocr_texts = apply_ocr_to_images(images)
+            # print(f"Here comes the OCR: {ocr_texts}") # only for trouble shooting
+            transcriptions = transcribe_texts(ocr_texts)
+            
+            # Save the transcription to a text file named after the PDF file
+            output_filename = f"{os.path.splitext(os.path.basename(pdf_path))[0]}.txt"
+            with open(output_filename, 'w', encoding='utf-8') as f:
+                for idx, transcription in enumerate(transcriptions):
+                    f.write(f"Transcription for image {idx + 1}:\n{transcription}\n\n")
+            
+            print(f"Transcriptions saved to {output_filename}")
+            pbar.update(1)
+
+
+
+if __name__ == "__main__":    
+    directory_path = '/Users/kailashdejesushornig/Documents/GitHub/Stipendier/data/pdfs/testSubset'  # Replace with your directory path
+    pdf_files = load_pdfs(directory_path)
+
+    main(pdf_files)
+
+    """Comments on S_Åke_Bäckman: 10 seconds processing on 2 pages
+    - Göteborg den 4 september 2022,--> should ave been 4 september 1969, hallucination... 
+    - känner --> känna 
+    - name, title, address and signatures have not been retained. 
+    
+    on GMF_Dahlbergfonden: 
+    - Error in process: PIL.UnidentifiedImageError:  cannot identify image file, typically means that the data being read is not a valid image. This can happen for a few reasons, such as if the data being extracted from the PDF is not actually an image, or if there’s an issue with how the image data is being processed.
+    
+    on Adlerbertska_Chalmersfonden: 
+    - poor quality in OCR page 1 = ['jot\n\noot\nco\n\nwe\nhe\n\n', ''] --> infeasible corrections
+
+    General comments: the model sometimes chooses to add comments to it's response, helpful but the human must skip them of course.
+
+    """
+
