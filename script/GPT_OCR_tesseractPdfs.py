@@ -77,22 +77,6 @@ def load_pdfs(directory_path):
     return pdf_files
 
 # Main function
-# def main(pdf_files):
-#     # Pipeline for the pdfs
-#     for pdf_path in pdf_files:
-#         images = extract_images_from_pdf(pdf_path)
-#         ocr_texts = apply_ocr_to_images(images)
-#         # print(f"Here comes the OCR: {ocr_texts}") # only for trouble shooting
-#         transcriptions = transcribe_texts(ocr_texts)
-        
-#         # Save the transcription to a text file named after the PDF file
-#         output_filename = f"{os.path.splitext(os.path.basename(pdf_path))[0]}.txt"
-#         with open(output_filename, 'w', encoding='utf-8') as f:
-#             for idx, transcription in enumerate(transcriptions):
-#                 f.write(f"Transcription for image {idx + 1}:\n{transcription}\n\n")
-        
-#         print(f"Transcriptions saved to {output_filename}")
-
 def main(pdf_files):
     # Pipeline for the pdfs
     with tqdm(total=len(pdf_files), desc="Processing PDFs") as pbar:
